@@ -67,7 +67,7 @@ func toUTS46ASCII(name string) string {
 
 // CreateDNSRecord creates a DNS record for the zone identifier.
 //
-// API reference: https://api.cloudflare.com/#dns-records-for-a-zone-create-dns-record
+// API reference: https://api.cloudflare.com/#dns-records-for-a-zonew-create-dns-record
 func (api *API) CreateDNSRecord(ctx context.Context, zoneID string, rr DNSRecord) (*DNSRecordResponse, error) {
 	rr.Name = toUTS46ASCII(rr.Name)
 

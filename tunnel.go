@@ -33,6 +33,29 @@ type TunnelConnection struct {
 	OpenedAt           string `json:"opened_at"`
 	OriginIP           string `json:"origin_ip"`
 }
+type TunnelConfiguration struct {
+	Ingress     []TunnelConfigurationIngress `json:"ingress"`
+	WarpRouting struct {
+		Enabled bool `json:"enabled"`
+	} `json:"warp-routing"`
+}
+
+type TunnelConfigurationIngress struct {
+	Service       string                                  `json:"service"`
+	Hostname      string                                  `json:"hostname,omitempty"`
+	OriginRequest TunnelConfigurationIngressOriginRequest `json:"originRequest,omitempty"`
+}
+
+type TunnelConfigurationIngressOriginRequest struct {
+	HTTPHostHeader string `json:"httpHostHeader"`
+}
+
+type TunnelConfigurationDetail struct {
+	Config    TunnelConfiguration `json:"config"`
+	TunnelID  string              `json:"tunnel_id"`
+	Version   int                 `json:"version"`
+	CreatedAt time.Time           `json:"created_at"`
+}
 
 // TunnelsDetailResponse is used for representing the API response payload for
 // multiple tunnels.
@@ -51,6 +74,13 @@ type TunnelDetailResponse struct {
 // TunnelTokenResponse is  the API response for a tunnel token.
 type TunnelTokenResponse struct {
 	Result string `json:"result"`
+	Response
+}
+
+// ConfiguratonDetailResponse ist the api response for multiple configuration
+// detail requests
+type ConfiguratonDetailResponse struct {
+	Result TunnelConfigurationDetail `json:"result"`
 	Response
 }
 
@@ -92,6 +122,17 @@ type TunnelListParams struct {
 	UUID      string     `url:"uuid,omitempty"` // the tunnel ID
 	IsDeleted bool       `url:"is_deleted,omitempty"`
 	ExistedAt *time.Time `url:"existed_at,omitempty"`
+}
+
+type TunnelConfigurationUpdateParams struct {
+	AccountID string              `json:"-"`
+	TunnelID  string              `json:"tunnel_id"`
+	Config    TunnelConfiguration `json:"config"`
+}
+
+type TunnelConfigurationParams struct {
+	AccountID string `json:"-"`
+	TunnelID  string `json:"tunnel_id"`
 }
 
 // Tunnels lists all tunnels.
@@ -292,4 +333,61 @@ func (api *API) TunnelToken(ctx context.Context, params TunnelTokenParams) (stri
 	}
 
 	return tunnelTokenResponse.Result, nil
+}
+
+// PutTunnelConfiguration to add or update a configuration for a cloudflared tunnel
+//
+// API reference: https://api.cloudflare.com/#cloudflare-tunnel-configuration-put-configuration
+func (api *API) TunnelConfigurationUpdate(ctx context.Context, params TunnelConfigurationUpdateParams) (TunnelConfiguration, error) {
+	if params.AccountID == "" {
+		return TunnelConfiguration{}, ErrMissingAccountID
+	}
+
+	if params.TunnelID == "" {
+		return TunnelConfiguration{}, errors.New("missing tunnel id")
+	}
+
+	uri := fmt.Sprintf("/accounts/%s/cfd_tunnel/%s/configurations", params.AccountID, params.TunnelID)
+
+	res, err := api.makeRequestContextWithHeaders(ctx, http.MethodPut, uri, params, nil)
+	if err != nil {
+		return TunnelConfiguration{}, err
+	}
+
+	var argoDetailsResponse ConfiguratonDetailResponse
+	err = json.Unmarshal(res, &argoDetailsResponse)
+	if err != nil {
+		return TunnelConfiguration{}, errors.Wrap(err, errUnmarshalError)
+	}
+
+	return argoDetailsResponse.Result.Config, nil
+}
+
+// GetTunnelConfiguration to add or update a configuration for a cloudflared tunnel
+//
+// API reference: https://api.cloudflare.com/#cloudflare-tunnel-configuration-get-configuration
+func (api *API) TunnelConfiguration(ctx context.Context, params TunnelConfigurationParams) (TunnelConfiguration, error) {
+	if params.AccountID == "" {
+		return TunnelConfiguration{}, ErrMissingAccountID
+	}
+
+	if params.TunnelID == "" {
+		return TunnelConfiguration{}, errors.New("missing tunnel id")
+	}
+
+	uri := fmt.Sprintf("/accounts/%s/cfd_tunnel/%s/configurations", params.AccountID, params.TunnelID)
+
+	res, err := api.makeRequestContextWithHeaders(ctx, http.MethodGet, uri, nil, nil)
+	if err != nil {
+		return TunnelConfiguration{}, err
+	}
+
+	var argoDetailsResponse ConfiguratonDetailResponse
+	err = json.Unmarshal(res, &argoDetailsResponse)
+	if err != nil {
+		fmt.Println(string(res))
+		return TunnelConfiguration{}, errors.Wrap(err, errUnmarshalError)
+	}
+
+	return argoDetailsResponse.Result.Config, nil
 }
